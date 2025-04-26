@@ -1,16 +1,23 @@
 import streamlit as st
-from textblob import TextBlob
-from deep_translator import GoogleTranslator
 from langdetect import detect
+from deep_translator import GoogleTranslator
+from nltk.sentiment import SentimentIntensityAnalyzer
+import nltk
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 import datetime
+
+# Download VADER if not already done
+nltk.download('vader_lexicon')
 
 # Set page configuration
 st.set_page_config(page_title="Sentiment Analyzer", page_icon="💬")
 
 st.title("💬 Sentiment Analysis of Tweets")
 st.write("This app analyzes the sentiment of your tweet or feedback using AI.")
+
+# Initialize Sentiment Analyzer
+sia = SentimentIntensityAnalyzer()
 
 # Text Input
 text = st.text_area("✍️ Enter a tweet or feedback:", height=200)
@@ -25,7 +32,7 @@ if st.button("🔍 Analyze"):
             if lang != 'en':
                 translated = GoogleTranslator(source='auto', target='en').translate(text)
                 st.write(f"🌐 Detected Language: `{lang}`")
-                st.info(f"Translated Text: {translated}")
+                st.info(f"🔤 Translated Text: {translated}")
             else:
                 translated = text
                 st.write("🌐 Language: English (No translation needed)")
@@ -33,63 +40,63 @@ if st.button("🔍 Analyze"):
             st.warning(f"Language detection/translation failed: {e}")
             translated = text
 
-        # Sentiment Analysis
-        blob = TextBlob(translated)
-        polarity = blob.sentiment.polarity
+        # Sentiment Analysis with VADER
+        scores = sia.polarity_scores(translated)
+        compound = scores['compound']
 
-        # Result display
-        if polarity > 0:
+        if compound >= 0.05:
             sentiment = "Positive 😀"
-        elif polarity < 0:
+        elif compound <= -0.05:
             sentiment = "Negative 😞"
         else:
             sentiment = "Neutral 😐"
 
         st.subheader("🧠 Sentiment Result")
         st.success(f"Sentiment: **{sentiment}**")
-        st.markdown(f"Polarity Score: `{polarity:.2f}`")
+        st.markdown(f"Compound Score: `{compound:.2f}`")
 
-        # Emoji Feedback
-        if polarity > 0.5:
+        # Feedback based on positivity
+        if compound > 0.5:
             st.write("😍 You're spreading positivity!")
-        elif polarity < -0.5:
+        elif compound < -0.5:
             st.write("😡 Seems pretty negative.")
-        elif -0.5 <= polarity <= 0.5 and polarity != 0:
+        elif -0.5 <= compound <= 0.5 and compound != 0:
             st.write("🙂 Slightly opinionated.")
         else:
             st.write("😐 Very neutral or unclear emotion.")
 
-        # AI Summary
-        st.subheader("🧠 AI Summary")
-        summary = blob.noun_phrases
-        if summary:
-            st.markdown(f"🔍 Key Topics: `{', '.join(summary[:5])}`")
-        else:
-            st.write("No significant summary detected.")
-
         # Word Cloud
         st.subheader("☁️ Word Cloud")
-        wc = WordCloud(width=600, height=300, background_color="white").generate(translated)
-        fig, ax = plt.subplots()
-        ax.imshow(wc, interpolation='bilinear')
-        ax.axis("off")
-        st.pyplot(fig)
+        try:
+            wc = WordCloud(width=600, height=300, background_color="white").generate(translated)
+            fig, ax = plt.subplots()
+            ax.imshow(wc, interpolation='bilinear')
+            ax.axis("off")
+            st.pyplot(fig)
+        except Exception as e:
+            st.warning(f"WordCloud generation failed: {e}")
 
         # Save to history
         if "history" not in st.session_state:
             st.session_state.history = []
 
         st.session_state.history.append({
-            "text": text,
+            "original_text": text,
+            "translated_text": translated,
             "sentiment": sentiment,
-            "polarity": polarity,
+            "compound": compound,
             "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         })
 
-# History
+# Sidebar History
 st.sidebar.title("📜 Sentiment History")
 if "history" in st.session_state and st.session_state.history:
     for item in st.session_state.history[::-1]:
-        st.sidebar.markdown(f"**{item['time']}**  \nSentiment: *{item['sentiment']}*  \nPolarity: `{item['polarity']:.2f}`")
+        st.sidebar.markdown(f"**{item['time']}**")
+        st.sidebar.markdown(f"📝 Original: {item['original_text']}")
+        st.sidebar.markdown(f"🔤 Translated: {item['translated_text']}")
+        st.sidebar.markdown(f"💬 Sentiment: *{item['sentiment']}*")
+        st.sidebar.markdown(f"📊 Compound Score: `{item['compound']:.2f}`")
+        st.sidebar.markdown("---")
 else:
-    st.sidebar.info("No history yet.")
+    st.sidebar.info("No history yet. Analyze something!")
