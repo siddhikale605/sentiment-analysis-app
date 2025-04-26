@@ -1,0 +1,6 @@
+streamlit
+textblob
+matplotlib
+wordcloud
+langdetect
+deep-translator
